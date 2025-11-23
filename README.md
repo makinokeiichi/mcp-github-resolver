@@ -102,7 +102,7 @@ Cursorの設定ファイル（`~/.cursor/config.json` または設定画面）�
       "command": "node",
       "args": ["/Users/username/projects/mcp-github-resolver/dist/index.js"],
       "env": {
-        "GITHUB_TOKEN": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        "GITHUB_TOKEN": "your_personal_access_token_here"
       }
     }
   }
