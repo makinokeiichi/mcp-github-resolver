@@ -39,6 +39,41 @@ const ResolveConversationSchema = z.object({
   threadId: z.string().describe("Thread ID (GraphQL Node ID)"),
 });
 
+// TypeScript interfaces for GraphQL responses
+interface CommentNode {
+  body: string;
+  author: {
+    login: string;
+  };
+}
+
+interface ReviewThreadNode {
+  id: string;
+  isResolved: boolean;
+  comments: {
+    nodes: CommentNode[];
+  };
+}
+
+interface GetUnresolvedThreadsResponse {
+  repository: {
+    pullRequest: {
+      reviewThreads: {
+        nodes: ReviewThreadNode[];
+      };
+    };
+  };
+}
+
+interface ResolveThreadResponse {
+  resolveReviewThread: {
+    thread: {
+      id: string;
+      isResolved: boolean;
+    };
+  };
+}
+
 // GraphQL query to get unresolved review threads
 const GET_UNRESOLVED_THREADS_QUERY = `
   query($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
@@ -142,7 +177,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { owner, repo, pullRequestNumber } =
         GetUnresolvedThreadsSchema.parse(args);
 
-      const response: any = await graphqlWithAuth(GET_UNRESOLVED_THREADS_QUERY, {
+      const response: GetUnresolvedThreadsResponse = await graphqlWithAuth(GET_UNRESOLVED_THREADS_QUERY, {
         owner,
         repo,
         pullRequestNumber,
@@ -150,8 +185,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       const reviewThreads = response.repository.pullRequest.reviewThreads.nodes;
       const unresolvedThreads = reviewThreads
-        .filter((thread: any) => !thread.isResolved)
-        .map((thread: any) => ({
+        .filter((thread: ReviewThreadNode) => !thread.isResolved)
+        .map((thread: ReviewThreadNode) => ({
           id: thread.id,
           firstComment: thread.comments.nodes[0]
             ? {
@@ -179,7 +214,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     } else if (name === "resolve_conversation") {
       const { threadId } = ResolveConversationSchema.parse(args);
 
-      const response: any = await graphqlWithAuth(RESOLVE_THREAD_MUTATION, {
+      const response: ResolveThreadResponse = await graphqlWithAuth(RESOLVE_THREAD_MUTATION, {
         threadId,
       });
 
