@@ -44,7 +44,7 @@ interface CommentNode {
   body: string;
   author: {
     login: string;
-  };
+  } | null;
 }
 
 interface ReviewThreadNode {
@@ -190,7 +190,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           id: thread.id,
           firstComment: thread.comments.nodes[0]
             ? {
-                author: thread.comments.nodes[0].author.login,
+                author: thread.comments.nodes[0].author?.login ?? "unknown",
                 body: thread.comments.nodes[0].body,
               }
             : null,
