@@ -67,9 +67,11 @@ npm run build
 
 ### 3. GitHub トークンの設定
 
-GitHub Personal Access Tokenが必要です。以下のスコープが必要です：
-- `repo` (リポジトリへのフルアクセス)
+GitHub Personal Access Tokenが必要です。操作ごとに必要なスコープは以下の通りです：
+- `get_unresolved_threads`（未解決スレッドの取得）: `read:repo` または `repo:status` で十分です
+- `resolve_conversation`（スレッドの解決）: `repo`（リポジトリへのフルアクセス）が必要です
 
+より限定的な権限で運用したい場合は、読み取り専用操作には `read:repo` などを利用してください。両方の操作を行う場合は `repo` スコープが必要です。
 トークンは環境変数 `GITHUB_TOKEN` として設定します。
 
 ## Cursorでの設定方法
