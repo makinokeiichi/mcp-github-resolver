@@ -51,6 +51,21 @@ Cursorなどのエディタと統合することで、「PRの未解決コメン
 }
 ```
 
+### 3. `reply_to_thread`
+指定されたプルリクエストの会話スレッドに返信コメントを追加します。
+
+**パラメータ:**
+- `threadId`: GraphQL Node ID (例: `PRRT_...`)
+- `body`: 返信するコメントの本文
+
+**返り値:**
+```json
+{
+  "success": true,
+  "commentUrl": "https://github.com/..."
+}
+```
+
 ## セットアップ
 
 ### 1. インストール
@@ -72,6 +87,7 @@ npm run build
 GitHub Personal Access Tokenが必要です。操作ごとに必要なスコープは以下の通りです：
 - `get_unresolved_threads`（未解決スレッドの取得）: パブリックリポジトリの場合は `read:repo` または `repo:status`。プライベートリポジトリの場合は `repo` スコープが必要です。
 - `resolve_conversation`（スレッドの解決）: `repo`（リポジトリへのフルアクセス）が必要です
+- `reply_to_thread`（スレッドへの返信）: `repo`（リポジトリへのフルアクセス）が必要です
 
 より限定的な権限で運用したい場合は、パブリックリポジトリの読み取り専用操作には `read:repo` などを利用できます。プライベートリポジトリや両方の操作を行う場合は `repo` スコープが必要です。
 トークンは環境変数 `GITHUB_TOKEN` として設定します。
