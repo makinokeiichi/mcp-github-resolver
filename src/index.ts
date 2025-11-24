@@ -10,36 +10,36 @@ import { graphql } from "@octokit/graphql";
 import { z } from "zod";
 import dotenv from "dotenv";
 
-// Load environment variables
+// 環境変数の読み込み
 dotenv.config();
 
-// Validate GitHub token
+// GitHubトークンの検証
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 if (!GITHUB_TOKEN) {
   console.error("Error: GITHUB_TOKEN environment variable is required");
   process.exit(1);
 }
 
-// Initialize GraphQL client
+// GraphQLクライアントの初期化
 const graphqlWithAuth = graphql.defaults({
   headers: {
     authorization: `token ${GITHUB_TOKEN}`,
   },
 });
 
-// Schema for get_unresolved_threads
+// get_unresolved_threads 用スキーマ
 const GetUnresolvedThreadsSchema = z.object({
   owner: z.string().describe("Repository owner"),
   repo: z.string().describe("Repository name"),
   pullRequestNumber: z.number().describe("Pull request number"),
 });
 
-// Schema for resolve_conversation
+// resolve_conversation 用スキーマ
 const ResolveConversationSchema = z.object({
   threadId: z.string().describe("Thread ID (GraphQL Node ID)"),
 });
 
-// TypeScript interfaces for GraphQL responses
+// GraphQLレスポンスの型定義
 interface CommentNode {
   body: string;
   author: {
@@ -74,7 +74,7 @@ interface ResolveThreadResponse {
   };
 }
 
-// GraphQL query to get unresolved review threads
+// 未解決レビュースレッドを取得するGraphQLクエリ
 const GET_UNRESOLVED_THREADS_QUERY = `
   query($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
     repository(owner: $owner, name: $repo) {
@@ -98,7 +98,7 @@ const GET_UNRESOLVED_THREADS_QUERY = `
   }
 `;
 
-// GraphQL mutation to resolve a review thread
+// レビュースレッドを解決するGraphQLミューテーション
 const RESOLVE_THREAD_MUTATION = `
   mutation($threadId: ID!) {
     resolveReviewThread(input: {threadId: $threadId}) {
@@ -110,7 +110,7 @@ const RESOLVE_THREAD_MUTATION = `
   }
 `;
 
-// Create MCP server
+// MCPサーバーの作成
 const server = new Server(
   {
     name: "mcp-github-resolver",
@@ -123,28 +123,28 @@ const server = new Server(
   }
 );
 
-// List available tools
+// 利用可能なツールのリスト
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
         name: "get_unresolved_threads",
         description:
-          "Get a list of unresolved conversation threads for a specific pull request",
+          "指定したプルリクエストの未解決の会話スレッド一覧を取得します",
         inputSchema: {
           type: "object",
           properties: {
             owner: {
               type: "string",
-              description: "Repository owner",
+              description: "リポジトリオーナー",
             },
             repo: {
               type: "string",
-              description: "Repository name",
+              description: "リポジトリ名",
             },
             pullRequestNumber: {
               type: "number",
-              description: "Pull request number",
+              description: "プルリクエスト番号",
             },
           },
           required: ["owner", "repo", "pullRequestNumber"],
@@ -152,13 +152,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "resolve_conversation",
-        description: "Resolve a specific conversation thread by its ID",
+        description: "特定のスレッドIDを指定して会話を解決済みにします",
         inputSchema: {
           type: "object",
           properties: {
             threadId: {
               type: "string",
-              description: "Thread ID (GraphQL Node ID)",
+              description: "スレッドID (GraphQL Node ID)",
             },
           },
           required: ["threadId"],
@@ -168,7 +168,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
-// Handle tool calls
+// ツール呼び出しの処理
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
@@ -184,10 +184,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       });
 
       if (!response.repository) {
-        throw new Error("Repository not found");
+        throw new Error("リポジトリが見つかりません");
       }
       if (!response.repository.pullRequest) {
-        throw new Error("Pull request not found");
+        throw new Error("プルリクエストが見つかりません");
       }
 
       const reviewThreads = response.repository.pullRequest.reviewThreads.nodes;
@@ -242,7 +242,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         ],
       };
     } else {
-      throw new Error(`Unknown tool: ${name}`);
+      throw new Error(`不明なツール: ${name}`);
     }
   } catch (error) {
     return {
@@ -263,7 +263,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// Start the server
+// サーバーの起動
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
