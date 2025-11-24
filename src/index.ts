@@ -130,13 +130,15 @@ function log(message: string, ...args: any[]) {
 }
 
 // ツール: 未解決スレッドの取得
-server.tool(
+server.registerTool(
   "get_unresolved_threads",
-  "指定したプルリクエストの未解決の会話スレッド一覧を取得します",
   {
-    owner: z.string().describe("リポジトリオーナー"),
-    repo: z.string().describe("リポジトリ名"),
-    pullRequestNumber: z.number().describe("プルリクエスト番号"),
+    description: "指定したプルリクエストの未解決の会話スレッド一覧を取得します",
+    inputSchema: {
+      owner: z.string().describe("リポジトリオーナー"),
+      repo: z.string().describe("リポジトリ名"),
+      pullRequestNumber: z.number().describe("プルリクエスト番号"),
+    },
   },
   async ({ owner, repo, pullRequestNumber }) => {
     const response = (await graphqlWithAuth(GET_UNRESOLVED_THREADS_QUERY, {
@@ -184,11 +186,13 @@ server.tool(
 );
 
 // ツール: スレッドの解決
-server.tool(
+server.registerTool(
   "resolve_conversation",
-  "特定のスレッドIDを指定して会話を解決済みにします",
   {
-    threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
+    description: "特定のスレッドIDを指定して会話を解決済みにします",
+    inputSchema: {
+      threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
+    },
   },
   async ({ threadId }) => {
     const response = (await graphqlWithAuth(RESOLVE_THREAD_MUTATION, {
@@ -215,12 +219,14 @@ server.tool(
 );
 
 // ツール: スレッドへの返信
-server.tool(
+server.registerTool(
   "reply_to_thread",
-  "指定されたプルリクエストの会話スレッドに返信コメントを追加します",
   {
-    threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
-    body: z.string().describe("返信するコメントの本文"),
+    description: "指定されたプルリクエストの会話スレッドに返信コメントを追加します",
+    inputSchema: {
+      threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
+      body: z.string().describe("返信するコメントの本文"),
+    },
   },
   async ({ threadId, body }) => {
     const response = (await graphqlWithAuth(ADD_REPLY_MUTATION, {
