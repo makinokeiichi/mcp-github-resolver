@@ -70,10 +70,10 @@ npm run build
 ### 3. GitHub トークンの設定
 
 GitHub Personal Access Tokenが必要です。操作ごとに必要なスコープは以下の通りです：
-- `get_unresolved_threads`（未解決スレッドの取得）: `read:repo` または `repo:status` で十分です
+- `get_unresolved_threads`（未解決スレッドの取得）: パブリックリポジトリの場合は `read:repo` または `repo:status`。プライベートリポジトリの場合は `repo` スコープが必要です。
 - `resolve_conversation`（スレッドの解決）: `repo`（リポジトリへのフルアクセス）が必要です
 
-より限定的な権限で運用したい場合は、読み取り専用操作には `read:repo` などを利用してください。両方の操作を行う場合は `repo` スコープが必要です。
+より限定的な権限で運用したい場合は、パブリックリポジトリの読み取り専用操作には `read:repo` などを利用できます。プライベートリポジトリや両方の操作を行う場合は `repo` スコープが必要です。
 トークンは環境変数 `GITHUB_TOKEN` として設定します。
 
 ## Cursorでの設定方法
@@ -91,7 +91,7 @@ Cursorの設定ファイル（`~/.cursor/config.json` または設定画面）�
       "command": "node",
       "args": ["/absolute/path/to/mcp-github-resolver/dist/index.js"],
       "env": {
-        "GITHUB_TOKEN": "your_github_personal_access_token_here"
+        "GITHUB_TOKEN": "your_personal_access_token_here"
       }
     }
   }
@@ -107,7 +107,7 @@ Cursorの設定ファイル（`~/.cursor/config.json` または設定画面）�
       "command": "node",
       "args": ["/Users/username/projects/mcp-github-resolver/dist/index.js"],
       "env": {
-        "GITHUB_TOKEN": "your_personal_access_token_here"
+        "GITHUB_TOKEN": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
       }
     }
   }

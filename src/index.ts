@@ -10,8 +10,11 @@ import { graphql } from "@octokit/graphql";
 import { z } from "zod";
 import dotenv from "dotenv";
 
-// 環境変数の読み込み
-dotenv.config();
+// 環境変数の読み込み（ローカル開発用）
+// MCPサーバーとして実行される際は、ホストアプリケーションから環境変数が提供されることを想定
+if (process.env.NODE_ENV !== "production") {
+  dotenv.config();
+}
 
 // GitHubトークンの検証
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -123,6 +126,13 @@ const server = new Server(
   }
 );
 
+// ログ出力用のヘルパー関数
+function log(message: string, ...args: any[]) {
+  if (process.env.DEBUG === "true") {
+    console.error(`[mcp-github-resolver] ${message}`, ...args);
+  }
+}
+
 // 利用可能なツールのリスト
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -172,94 +182,76 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
-  try {
-    if (name === "get_unresolved_threads") {
-      const { owner, repo, pullRequestNumber } =
-        GetUnresolvedThreadsSchema.parse(args);
+  if (name === "get_unresolved_threads") {
+    const { owner, repo, pullRequestNumber } =
+      GetUnresolvedThreadsSchema.parse(args);
 
-      const response: GetUnresolvedThreadsResponse = await graphqlWithAuth(GET_UNRESOLVED_THREADS_QUERY, {
-        owner,
-        repo,
-        pullRequestNumber,
-      });
+    const response = (await graphqlWithAuth(GET_UNRESOLVED_THREADS_QUERY, {
+      owner,
+      repo,
+      pullRequestNumber,
+    })) as GetUnresolvedThreadsResponse;
 
-      if (!response.repository) {
-        throw new Error("リポジトリが見つかりません");
-      }
-      if (!response.repository.pullRequest) {
-        throw new Error("プルリクエストが見つかりません");
-      }
-
-      const reviewThreads = response.repository.pullRequest.reviewThreads.nodes;
-      const unresolvedThreads = reviewThreads
-        .filter((thread) => !thread.isResolved)
-        .map((thread) => ({
-          id: thread.id,
-          firstComment: thread.comments.nodes[0]
-            ? {
-                author: thread.comments.nodes[0].author?.login ?? "unknown",
-                body: thread.comments.nodes[0].body,
-              }
-            : null,
-        }));
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                count: unresolvedThreads.length,
-                threads: unresolvedThreads,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    } else if (name === "resolve_conversation") {
-      const { threadId } = ResolveConversationSchema.parse(args);
-
-      const response: ResolveThreadResponse = await graphqlWithAuth(RESOLVE_THREAD_MUTATION, {
-        threadId,
-      });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                threadId: response.resolveReviewThread.thread.id,
-                isResolved: response.resolveReviewThread.thread.isResolved,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    } else {
-      throw new Error(`不明なツール: ${name}`);
+    if (!response.repository) {
+      throw new Error("リポジトリが見つかりません");
     }
-  } catch (error) {
+    if (!response.repository.pullRequest) {
+      throw new Error("プルリクエストが見つかりません");
+    }
+
+    const reviewThreads = response.repository.pullRequest.reviewThreads.nodes;
+    const unresolvedThreads = reviewThreads
+      .filter((thread) => !thread.isResolved)
+      .map((thread) => ({
+        id: thread.id,
+        firstComment: thread.comments.nodes[0]
+          ? {
+              author: thread.comments.nodes[0].author?.login ?? "unknown",
+              body: thread.comments.nodes[0].body,
+            }
+          : null,
+      }));
+
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify(
             {
-              error: error instanceof Error ? error.message : String(error),
+              count: unresolvedThreads.length,
+              threads: unresolvedThreads,
             },
             null,
             2
           ),
         },
       ],
-      isError: true,
     };
+  } else if (name === "resolve_conversation") {
+    const { threadId } = ResolveConversationSchema.parse(args);
+
+    const response = (await graphqlWithAuth(RESOLVE_THREAD_MUTATION, {
+      threadId,
+    })) as ResolveThreadResponse;
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              success: true,
+              threadId: response.resolveReviewThread.thread.id,
+              isResolved: response.resolveReviewThread.thread.isResolved,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  } else {
+    throw new Error(`不明なツール: ${name}`);
   }
 });
 
@@ -267,7 +259,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("MCP GitHub Resolver server running on stdio");
+  log("MCP GitHub Resolver server running on stdio");
 }
 
 main().catch((error) => {
