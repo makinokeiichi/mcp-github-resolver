@@ -183,10 +183,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         pullRequestNumber,
       });
 
+      if (!response.repository) {
+        throw new Error("Repository not found");
+      }
+      if (!response.repository.pullRequest) {
+        throw new Error("Pull request not found");
+      }
+
       const reviewThreads = response.repository.pullRequest.reviewThreads.nodes;
       const unresolvedThreads = reviewThreads
-        .filter((thread: ReviewThreadNode) => !thread.isResolved)
-        .map((thread: ReviewThreadNode) => ({
+        .filter((thread) => !thread.isResolved)
+        .map((thread) => ({
           id: thread.id,
           firstComment: thread.comments.nodes[0]
             ? {
