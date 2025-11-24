@@ -134,11 +134,11 @@ server.registerTool(
   "get_unresolved_threads",
   {
     description: "指定したプルリクエストの未解決の会話スレッド一覧を取得します",
-    inputSchema: {
+    inputSchema: z.object({
       owner: z.string().describe("リポジトリオーナー"),
       repo: z.string().describe("リポジトリ名"),
       pullRequestNumber: z.number().describe("プルリクエスト番号"),
-    },
+    }),
   },
   async ({ owner, repo, pullRequestNumber }) => {
     const response = (await graphqlWithAuth(GET_UNRESOLVED_THREADS_QUERY, {
@@ -190,9 +190,9 @@ server.registerTool(
   "resolve_conversation",
   {
     description: "特定のスレッドIDを指定して会話を解決済みにします",
-    inputSchema: {
+    inputSchema: z.object({
       threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
-    },
+    }),
   },
   async ({ threadId }) => {
     const response = (await graphqlWithAuth(RESOLVE_THREAD_MUTATION, {
@@ -223,10 +223,10 @@ server.registerTool(
   "reply_to_thread",
   {
     description: "指定されたプルリクエストの会話スレッドに返信コメントを追加します",
-    inputSchema: {
+    inputSchema: z.object({
       threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
       body: z.string().describe("返信するコメントの本文"),
-    },
+    }),
   },
   async ({ threadId, body }) => {
     const response = (await graphqlWithAuth(ADD_REPLY_MUTATION, {
