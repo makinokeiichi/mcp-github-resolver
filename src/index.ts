@@ -42,6 +42,12 @@ const ResolveConversationSchema = z.object({
   threadId: z.string().describe("Thread ID (GraphQL Node ID)"),
 });
 
+// reply_to_thread 用スキーマ
+const ReplyToThreadSchema = z.object({
+  threadId: z.string().describe("Thread ID (GraphQL Node ID)"),
+  body: z.string().describe("返信するコメントの本文"),
+});
+
 // GraphQLレスポンスの型定義
 interface CommentNode {
   body: string;
@@ -77,6 +83,14 @@ interface ResolveThreadResponse {
   };
 }
 
+interface AddReplyResponse {
+  addPullRequestReviewThreadReply: {
+    comment: {
+      url: string;
+    };
+  };
+}
+
 // 未解決レビュースレッドを取得するGraphQLクエリ
 const GET_UNRESOLVED_THREADS_QUERY = `
   query($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
@@ -108,6 +122,17 @@ const RESOLVE_THREAD_MUTATION = `
       thread {
         id
         isResolved
+      }
+    }
+  }
+`;
+
+// スレッドに返信するGraphQLミューテーション
+const ADD_REPLY_MUTATION = `
+  mutation AddReply($threadId: ID!, $body: String!) {
+    addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
+      comment {
+        url
       }
     }
   }
@@ -172,6 +197,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ["threadId"],
+        },
+      },
+      {
+        name: "reply_to_thread",
+        description:
+          "指定されたプルリクエストの会話スレッドに返信コメントを追加します",
+        inputSchema: {
+          type: "object",
+          properties: {
+            threadId: {
+              type: "string",
+              description: "スレッドID (GraphQL Node ID)",
+            },
+            body: {
+              type: "string",
+              description: "返信するコメントの本文",
+            },
+          },
+          required: ["threadId", "body"],
         },
       },
     ],
@@ -243,6 +287,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               success: true,
               threadId: response.resolveReviewThread.thread.id,
               isResolved: response.resolveReviewThread.thread.isResolved,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  } else if (name === "reply_to_thread") {
+    const { threadId, body } = ReplyToThreadSchema.parse(args);
+
+    const response = (await graphqlWithAuth(ADD_REPLY_MUTATION, {
+      threadId,
+      body,
+    })) as AddReplyResponse;
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              success: true,
+              commentUrl: response.addPullRequestReviewThreadReply.comment.url,
             },
             null,
             2
