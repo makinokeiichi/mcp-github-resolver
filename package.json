@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
   },
   "keywords": [
     "mcp",
@@ -15,6 +17,14 @@
   ],
   "author": "",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/makinokeiichi/mcp-github-resolver.git"
+  },
+  "bugs": {
+    "url": "https://github.com/makinokeiichi/mcp-github-resolver/issues"
+  },
+  "homepage": "https://github.com/makinokeiichi/mcp-github-resolver#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.22.0",
     "@octokit/graphql": "^8.1.1",

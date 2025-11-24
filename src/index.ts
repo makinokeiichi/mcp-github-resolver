@@ -15,8 +15,17 @@ if (process.env.NODE_ENV !== "production") {
 // GitHubトークンの検証
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 if (!GITHUB_TOKEN) {
-  console.error("Error: GITHUB_TOKEN environment variable is required");
+  console.error(
+    "Error: GITHUB_TOKEN environment variable is required / GITHUB_TOKEN環境変数が必要です"
+  );
   process.exit(1);
+}
+
+// GitHubトークンの形式チェック（基本的な検証）
+if (!GITHUB_TOKEN.match(/^(ghp_|gho_|ghu_|ghs_|ghr_)[a-zA-Z0-9]{36,}$/)) {
+  console.warn(
+    "Warning: GITHUB_TOKEN format may be invalid / GITHUB_TOKENの形式が無効な可能性があります"
+  );
 }
 
 // GraphQLクライアントの初期化
@@ -119,13 +128,46 @@ const ADD_REPLY_MUTATION = `
 // MCPサーバーの作成
 const server = new McpServer({
   name: "mcp-github-resolver",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 // ログ出力用のヘルパー関数
 function log(message: string, ...args: any[]) {
   if (process.env.DEBUG === "true") {
     console.error(`[mcp-github-resolver] ${message}`, ...args);
+  }
+}
+
+function logError(message: string, error: unknown) {
+  console.error(`[mcp-github-resolver] ERROR: ${message}`, error);
+}
+
+// GraphQLリクエストのラッパー関数（エラーハンドリング付き）
+// @octokit/graphqlは直接データを返すが、エラー時は例外をスローする
+async function graphqlRequest<T>(
+  query: string,
+  variables: Record<string, any>
+): Promise<T> {
+  try {
+    const response = (await graphqlWithAuth(query, variables)) as T;
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      logError("GraphQL request failed", error);
+      // エラーメッセージを改善
+      if (error.message.includes("Bad credentials")) {
+        throw new Error(
+          `Authentication failed: Invalid GITHUB_TOKEN / 認証に失敗しました: GITHUB_TOKENが無効です`
+        );
+      }
+      if (error.message.includes("Not Found")) {
+        throw new Error(
+          `Resource not found / リソースが見つかりません: ${error.message}`
+        );
+      }
+      throw new Error(`GraphQL Error: ${error.message} / GraphQLエラー: ${error.message}`);
+    }
+    throw new Error(`Unknown error: ${String(error)} / 不明なエラー: ${String(error)}`);
   }
 }
 
@@ -141,17 +183,24 @@ server.registerTool(
     }),
   },
   async ({ owner, repo, pullRequestNumber }) => {
-    const response = (await graphqlWithAuth(GET_UNRESOLVED_THREADS_QUERY, {
-      owner,
-      repo,
-      pullRequestNumber,
-    })) as GetUnresolvedThreadsResponse;
+    const response = await graphqlRequest<GetUnresolvedThreadsResponse>(
+      GET_UNRESOLVED_THREADS_QUERY,
+      {
+        owner,
+        repo,
+        pullRequestNumber,
+      }
+    );
 
     if (!response.repository) {
-      throw new Error("リポジトリが見つかりません");
+      throw new Error(
+        `Repository not found: ${owner}/${repo} / リポジトリが見つかりません: ${owner}/${repo}`
+      );
     }
     if (!response.repository.pullRequest) {
-      throw new Error("プルリクエストが見つかりません");
+      throw new Error(
+        `Pull request not found: #${pullRequestNumber} / プルリクエストが見つかりません: #${pullRequestNumber}`
+      );
     }
 
     const reviewThreads = response.repository.pullRequest.reviewThreads.nodes;
@@ -195,9 +244,12 @@ server.registerTool(
     }),
   },
   async ({ threadId }) => {
-    const response = (await graphqlWithAuth(RESOLVE_THREAD_MUTATION, {
-      threadId,
-    })) as ResolveThreadResponse;
+    const response = await graphqlRequest<ResolveThreadResponse>(
+      RESOLVE_THREAD_MUTATION,
+      {
+        threadId,
+      }
+    );
 
     return {
       content: [
@@ -229,10 +281,13 @@ server.registerTool(
     }),
   },
   async ({ threadId, body }) => {
-    const response = (await graphqlWithAuth(ADD_REPLY_MUTATION, {
-      threadId,
-      body,
-    })) as AddReplyResponse;
+    const response = await graphqlRequest<AddReplyResponse>(
+      ADD_REPLY_MUTATION,
+      {
+        threadId,
+        body,
+      }
+    );
 
     return {
       content: [
@@ -260,6 +315,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("Fatal error:", error);
+  logError("Fatal error during server startup", error);
   process.exit(1);
 });
