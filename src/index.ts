@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
 import { graphql } from "@octokit/graphql";
 import { z } from "zod";
 import dotenv from "dotenv";
@@ -28,24 +24,6 @@ const graphqlWithAuth = graphql.defaults({
   headers: {
     authorization: `token ${GITHUB_TOKEN}`,
   },
-});
-
-// get_unresolved_threads 用スキーマ
-const GetUnresolvedThreadsSchema = z.object({
-  owner: z.string().describe("Repository owner"),
-  repo: z.string().describe("Repository name"),
-  pullRequestNumber: z.number().describe("Pull request number"),
-});
-
-// resolve_conversation 用スキーマ
-const ResolveConversationSchema = z.object({
-  threadId: z.string().describe("Thread ID (GraphQL Node ID)"),
-});
-
-// reply_to_thread 用スキーマ
-const ReplyToThreadSchema = z.object({
-  threadId: z.string().describe("Thread ID (GraphQL Node ID)"),
-  body: z.string().describe("返信するコメントの本文"),
 });
 
 // GraphQLレスポンスの型定義
@@ -139,17 +117,10 @@ const ADD_REPLY_MUTATION = `
 `;
 
 // MCPサーバーの作成
-const server = new Server(
-  {
-    name: "mcp-github-resolver",
-    version: "1.0.0",
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
-);
+const server = new McpServer({
+  name: "mcp-github-resolver",
+  version: "1.0.0",
+});
 
 // ログ出力用のヘルパー関数
 function log(message: string, ...args: any[]) {
@@ -158,78 +129,18 @@ function log(message: string, ...args: any[]) {
   }
 }
 
-// 利用可能なツールのリスト
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: "get_unresolved_threads",
-        description:
-          "指定したプルリクエストの未解決の会話スレッド一覧を取得します",
-        inputSchema: {
-          type: "object",
-          properties: {
-            owner: {
-              type: "string",
-              description: "リポジトリオーナー",
-            },
-            repo: {
-              type: "string",
-              description: "リポジトリ名",
-            },
-            pullRequestNumber: {
-              type: "number",
-              description: "プルリクエスト番号",
-            },
-          },
-          required: ["owner", "repo", "pullRequestNumber"],
-        },
-      },
-      {
-        name: "resolve_conversation",
-        description: "特定のスレッドIDを指定して会話を解決済みにします",
-        inputSchema: {
-          type: "object",
-          properties: {
-            threadId: {
-              type: "string",
-              description: "スレッドID (GraphQL Node ID)",
-            },
-          },
-          required: ["threadId"],
-        },
-      },
-      {
-        name: "reply_to_thread",
-        description:
-          "指定されたプルリクエストの会話スレッドに返信コメントを追加します",
-        inputSchema: {
-          type: "object",
-          properties: {
-            threadId: {
-              type: "string",
-              description: "スレッドID (GraphQL Node ID)",
-            },
-            body: {
-              type: "string",
-              description: "返信するコメントの本文",
-            },
-          },
-          required: ["threadId", "body"],
-        },
-      },
-    ],
-  };
-});
-
-// ツール呼び出しの処理
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  if (name === "get_unresolved_threads") {
-    const { owner, repo, pullRequestNumber } =
-      GetUnresolvedThreadsSchema.parse(args);
-
+// ツール: 未解決スレッドの取得
+server.registerTool(
+  "get_unresolved_threads",
+  {
+    description: "指定したプルリクエストの未解決の会話スレッド一覧を取得します",
+    inputSchema: z.object({
+      owner: z.string().describe("リポジトリオーナー"),
+      repo: z.string().describe("リポジトリ名"),
+      pullRequestNumber: z.number().describe("プルリクエスト番号"),
+    }),
+  },
+  async ({ owner, repo, pullRequestNumber }) => {
     const response = (await graphqlWithAuth(GET_UNRESOLVED_THREADS_QUERY, {
       owner,
       repo,
@@ -271,9 +182,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         },
       ],
     };
-  } else if (name === "resolve_conversation") {
-    const { threadId } = ResolveConversationSchema.parse(args);
+  }
+);
 
+// ツール: スレッドの解決
+server.registerTool(
+  "resolve_conversation",
+  {
+    description: "特定のスレッドIDを指定して会話を解決済みにします",
+    inputSchema: z.object({
+      threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
+    }),
+  },
+  async ({ threadId }) => {
     const response = (await graphqlWithAuth(RESOLVE_THREAD_MUTATION, {
       threadId,
     })) as ResolveThreadResponse;
@@ -294,9 +215,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         },
       ],
     };
-  } else if (name === "reply_to_thread") {
-    const { threadId, body } = ReplyToThreadSchema.parse(args);
+  }
+);
 
+// ツール: スレッドへの返信
+server.registerTool(
+  "reply_to_thread",
+  {
+    description: "指定されたプルリクエストの会話スレッドに返信コメントを追加します",
+    inputSchema: z.object({
+      threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
+      body: z.string().describe("返信するコメントの本文"),
+    }),
+  },
+  async ({ threadId, body }) => {
     const response = (await graphqlWithAuth(ADD_REPLY_MUTATION, {
       threadId,
       body,
@@ -317,10 +249,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         },
       ],
     };
-  } else {
-    throw new Error(`不明なツール: ${name}`);
   }
-});
+);
 
 // サーバーの起動
 async function main() {
