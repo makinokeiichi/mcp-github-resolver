@@ -22,7 +22,7 @@ if (!GITHUB_TOKEN) {
 }
 
 // GitHubトークンの形式チェック（基本的な検証）
-if (!GITHUB_TOKEN.match(/^(ghp_|gho_|ghu_|ghs_|ghr_)[a-zA-Z0-9]{36,}$/)) {
+if (!GITHUB_TOKEN.match(/^(ghp_|gho_|ghu_|ghs_|ghr_)[a-zA-Z0-9]{36}$/)) {
   console.warn(
     "Warning: GITHUB_TOKEN format may be invalid / GITHUB_TOKENの形式が無効な可能性があります"
   );
