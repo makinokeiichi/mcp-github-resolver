@@ -22,13 +22,18 @@ if (!GITHUB_TOKEN) {
 }
 
 // GitHubトークンの形式チェック（基本的な検証）
-if (!GITHUB_TOKEN.match(/^(ghp_|gho_|ghu_|ghs_|ghr_)[a-zA-Z0-9]{36}$/)) {
-  console.error(
-    "Error: GITHUB_TOKEN format is invalid. Expected format: <prefix>_<36 alphanumeric chars> (e.g., ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx). " +
+// Classic tokens: ghp_, gho_, ghu_, ghs_, ghr_ の後に36文字
+// Fine-grained tokens: github_pat_ の後に可変長の文字列
+const classicTokenRegex = /^(ghp_|gho_|ghu_|ghs_|ghr_)[a-zA-Z0-9]{36}$/;
+const fineGrainedTokenRegex = /^github_pat_[a-zA-Z0-9_]{22,}$/;
+if (!classicTokenRegex.test(GITHUB_TOKEN) && !fineGrainedTokenRegex.test(GITHUB_TOKEN)) {
+  console.warn(
+    "Warning: GITHUB_TOKEN format may be invalid. Expected formats: " +
+      "Classic tokens: <prefix>_<36 alphanumeric chars> (e.g., ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx), " +
+      "or fine-grained tokens: github_pat_xxxxxxxxxxxxxxxxxxxxx. " +
       "See https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token for details. " +
-      "GITHUB_TOKENの形式が無効です。例: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      "GITHUB_TOKENの形式が無効の可能性があります。例: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx または github_pat_xxxxxxxxxxxxxxxxxxxxx"
   );
-  process.exit(1);
 }
 
 // GraphQLクライアントの初期化
@@ -174,24 +179,29 @@ async function graphqlRequest<T>(
     return response;
   } catch (error) {
     if (error instanceof Error) {
-      logError("GraphQL request failed", error);
       // エラーメッセージを改善
       // Note: 文字列マッチングを使用しているが、@octokit/graphqlのエラーオブジェクトには
       // 標準的なエラーコードプロパティが存在しないため、メッセージ文字列での判定が一般的な方法。
       // より堅牢な方法としては、エラーオブジェクトの型定義を拡張してエラーコードを追加することも可能。
       if (error.message.includes("Bad credentials")) {
         throw new Error(
-          `Authentication failed: Invalid GITHUB_TOKEN / 認証に失敗しました: GITHUB_TOKENが無効です`
+          `Authentication failed: Invalid GITHUB_TOKEN / 認証に失敗しました: GITHUB_TOKENが無効です`,
+          { cause: error }
         );
       }
       if (error.message.includes("Not Found")) {
         throw new Error(
-          `Resource not found / リソースが見つかりません: ${error.message}`
+          `Resource not found / リソースが見つかりません: ${error.message}`,
+          { cause: error }
         );
       }
-      throw new Error(`GraphQL Error / GraphQLエラー: ${error.message}`);
+      throw new Error(`GraphQL Error / GraphQLエラー: ${error.message}`, {
+        cause: error,
+      });
     }
-    throw new Error(`Unknown error / 不明なエラー: ${String(error)}`);
+    throw new Error(`Unknown error / 不明なエラー: ${String(error)}`, {
+      cause: error,
+    });
   }
 }
 
