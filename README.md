@@ -178,4 +178,4 @@ TypeScriptコードが `dist/` ディレクトリにトランスパイルされ�
 
 ## ライセンス
 
-ISC
+[ISC](LICENSE)
