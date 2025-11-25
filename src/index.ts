@@ -23,9 +23,12 @@ if (!GITHUB_TOKEN) {
 
 // GitHubトークンの形式チェック（基本的な検証）
 if (!GITHUB_TOKEN.match(/^(ghp_|gho_|ghu_|ghs_|ghr_)[a-zA-Z0-9]{36}$/)) {
-  console.warn(
-    "Warning: GITHUB_TOKEN format may be invalid / GITHUB_TOKENの形式が無効な可能性があります"
+  console.error(
+    "Error: GITHUB_TOKEN format is invalid. Expected format: <prefix>_<36 alphanumeric chars> (e.g., ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx). " +
+      "See https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token for details. " +
+      "GITHUB_TOKENの形式が無効です。例: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   );
+  process.exit(1);
 }
 
 // GraphQLクライアントの初期化
@@ -57,8 +60,8 @@ interface GetUnresolvedThreadsResponse {
       reviewThreads: {
         nodes: ReviewThreadNode[];
       };
-    };
-  };
+    } | null;
+  } | null;
 }
 
 interface ResolveThreadResponse {
@@ -142,8 +145,26 @@ function logError(message: string, error: unknown) {
   console.error(`[mcp-github-resolver] ERROR: ${message}`, error);
 }
 
-// GraphQLリクエストのラッパー関数（エラーハンドリング付き）
-// @octokit/graphqlは直接データを返すが、エラー時は例外をスローする
+/**
+ * GraphQLリクエストのラッパー関数（エラーハンドリング付き）
+ * @template T - レスポンスデータの型
+ * @param {string} query - GraphQLクエリまたはミューテーション文字列
+ * @param {Record<string, any>} variables - GraphQLクエリに渡す変数オブジェクト
+ * @returns {Promise<T>} GraphQL APIからのレスポンスデータ
+ * @throws {Error} 認証エラー、リソース未検出エラー、その他のGraphQLエラー
+ * 
+ * @example
+ * ```typescript
+ * const response = await graphqlRequest<GetUnresolvedThreadsResponse>(
+ *   GET_UNRESOLVED_THREADS_QUERY,
+ *   { owner: "octocat", repo: "Hello-World", pullRequestNumber: 1 }
+ * );
+ * ```
+ * 
+ * @remarks
+ * @octokit/graphqlは直接データを返すが、エラー時は例外をスローする。
+ * この関数はエラーをキャッチし、より分かりやすいエラーメッセージを提供する。
+ */
 async function graphqlRequest<T>(
   query: string,
   variables: Record<string, any>
@@ -155,6 +176,9 @@ async function graphqlRequest<T>(
     if (error instanceof Error) {
       logError("GraphQL request failed", error);
       // エラーメッセージを改善
+      // Note: 文字列マッチングを使用しているが、@octokit/graphqlのエラーオブジェクトには
+      // 標準的なエラーコードプロパティが存在しないため、メッセージ文字列での判定が一般的な方法。
+      // より堅牢な方法としては、エラーオブジェクトの型定義を拡張してエラーコードを追加することも可能。
       if (error.message.includes("Bad credentials")) {
         throw new Error(
           `Authentication failed: Invalid GITHUB_TOKEN / 認証に失敗しました: GITHUB_TOKENが無効です`
@@ -165,9 +189,9 @@ async function graphqlRequest<T>(
           `Resource not found / リソースが見つかりません: ${error.message}`
         );
       }
-      throw new Error(`GraphQL Error: ${error.message} / GraphQLエラー: ${error.message}`);
+      throw new Error(`GraphQL Error / GraphQLエラー: ${error.message}`);
     }
-    throw new Error(`Unknown error: ${String(error)} / 不明なエラー: ${String(error)}`);
+    throw new Error(`Unknown error / 不明なエラー: ${String(error)}`);
   }
 }
 
