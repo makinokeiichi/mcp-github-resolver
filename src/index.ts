@@ -42,7 +42,7 @@ const graphqlWithAuth = graphql.defaults({
     authorization: `token ${GITHUB_TOKEN}`,
   },
   request: {
-    timeout: 30000,
+    signal: AbortSignal.timeout(30000),
   },
 });
 
@@ -220,7 +220,8 @@ async function graphqlRequest<T>(
 server.registerTool(
   "get_unresolved_threads",
   {
-    description: "指定したプルリクエストの未解決の会話スレッド一覧を取得します。レスポンスの pageInfo.hasNextPage が true の場合、まだ取得していないスレッドが存在します。",
+    description:
+      "指定したプルリクエストの未解決の会話スレッド一覧を取得します。pageInfo.hasNextPage は「取得していない総スレッド（解決済み含む）がまだあるか」を示します。未解決のみ欲しい場合は hasNextPage が false になるまでページネーションを続けてください（現在ページで threads が0件でも次ページに未解決がある場合があります）。",
     inputSchema: z.object({
       owner: z.string().describe("リポジトリオーナー"),
       repo: z.string().describe("リポジトリ名"),
