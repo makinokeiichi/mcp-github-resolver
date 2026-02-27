@@ -225,7 +225,7 @@ server.registerTool(
       owner: z.string().describe("リポジトリオーナー"),
       repo: z.string().describe("リポジトリ名"),
       pullRequestNumber: z.number().describe("プルリクエスト番号"),
-      limit: z.number().min(1).max(100).default(20).describe("1回の取得件数 (1-100, デフォルト: 20)"),
+      limit: z.number().min(1).max(100).default(5).describe("1回の取得件数 (1-100, デフォルト: 5)"),
       after: z.string().optional().describe("ページネーション用カーソル (前回レスポンスのpageInfo.endCursor)"),
     }),
   },
