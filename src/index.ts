@@ -217,20 +217,23 @@ async function graphqlRequest<T>(
 }
 
 // ツール: 未解決スレッドの取得
+const getUnresolvedThreadsSchema = z.object({
+  owner: z.string().describe("リポジトリオーナー"),
+  repo: z.string().describe("リポジトリ名"),
+  pullRequestNumber: z.number().describe("プルリクエスト番号"),
+  limit: z.number().min(1).max(100).default(5).describe("1回の取得件数 (1-100, デフォルト: 5)"),
+  after: z.string().optional().describe("ページネーション用カーソル (前回レスポンスのpageInfo.endCursor)"),
+});
+
 server.registerTool(
   "get_unresolved_threads",
   {
     description:
       "指定したプルリクエストの未解決の会話スレッド一覧を取得します。pageInfo.hasNextPage は「取得していない総スレッド（解決済み含む）がまだあるか」を示します。未解決のみ欲しい場合は hasNextPage が false になるまでページネーションを続けてください（現在ページで threads が0件でも次ページに未解決がある場合があります）。",
-    inputSchema: z.object({
-      owner: z.string().describe("リポジトリオーナー"),
-      repo: z.string().describe("リポジトリ名"),
-      pullRequestNumber: z.number().describe("プルリクエスト番号"),
-      limit: z.number().min(1).max(100).default(5).describe("1回の取得件数 (1-100, デフォルト: 5)"),
-      after: z.string().optional().describe("ページネーション用カーソル (前回レスポンスのpageInfo.endCursor)"),
-    }),
+    inputSchema: getUnresolvedThreadsSchema,
   },
-  async ({ owner, repo, pullRequestNumber, limit, after }) => {
+  async (args: z.infer<typeof getUnresolvedThreadsSchema>) => {
+    const { owner, repo, pullRequestNumber, limit, after } = args;
     const response = await graphqlRequest<GetUnresolvedThreadsResponse>(
       GET_UNRESOLVED_THREADS_QUERY,
       {
@@ -289,15 +292,18 @@ server.registerTool(
 );
 
 // ツール: スレッドの解決
+const resolveConversationSchema = z.object({
+  threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
+});
+
 server.registerTool(
   "resolve_conversation",
   {
     description: "特定のスレッドIDを指定して会話を解決済みにします",
-    inputSchema: z.object({
-      threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
-    }),
+    inputSchema: resolveConversationSchema,
   },
-  async ({ threadId }) => {
+  async (args: z.infer<typeof resolveConversationSchema>) => {
+    const { threadId } = args;
     const response = await graphqlRequest<ResolveThreadResponse>(
       RESOLVE_THREAD_MUTATION,
       {
@@ -325,16 +331,19 @@ server.registerTool(
 );
 
 // ツール: スレッドへの返信
+const replyToThreadSchema = z.object({
+  threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
+  body: z.string().describe("返信するコメントの本文"),
+});
+
 server.registerTool(
   "reply_to_thread",
   {
     description: "指定されたプルリクエストの会話スレッドに返信コメントを追加します",
-    inputSchema: z.object({
-      threadId: z.string().describe("スレッドID (GraphQL Node ID)"),
-      body: z.string().describe("返信するコメントの本文"),
-    }),
+    inputSchema: replyToThreadSchema,
   },
-  async ({ threadId, body }) => {
+  async (args: z.infer<typeof replyToThreadSchema>) => {
+    const { threadId, body } = args;
     const response = await graphqlRequest<AddReplyResponse>(
       ADD_REPLY_MUTATION,
       {
