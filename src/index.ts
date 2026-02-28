@@ -63,6 +63,10 @@ interface GetUnresolvedThreadsResponse {
   repository: {
     pullRequest: {
       reviewThreads: {
+        pageInfo: {
+          hasNextPage: boolean;
+          endCursor: string | null;
+        };
         nodes: ReviewThreadNode[];
       };
     } | null;
@@ -88,10 +92,14 @@ interface AddReplyResponse {
 
 // 未解決レビュースレッドを取得するGraphQLクエリ
 const GET_UNRESOLVED_THREADS_QUERY = `
-  query($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
+  query($owner: String!, $repo: String!, $pullRequestNumber: Int!, $first: Int!, $after: String) {
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $pullRequestNumber) {
-        reviewThreads(first: 100) {
+        reviewThreads(first: $first, after: $after) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
           nodes {
             id
             isResolved
@@ -175,7 +183,11 @@ async function graphqlRequest<T>(
   variables: Record<string, any>
 ): Promise<T> {
   try {
-    const response = (await graphqlWithAuth(query, variables)) as T;
+    const signal = AbortSignal.timeout(30000);
+    const response = (await graphqlWithAuth(query, {
+      ...variables,
+      request: { signal },
+    })) as T;
     return response;
   } catch (error) {
     if (error instanceof Error) {
@@ -210,22 +222,27 @@ const getUnresolvedThreadsSchema = z.object({
   owner: z.string().describe("リポジトリオーナー"),
   repo: z.string().describe("リポジトリ名"),
   pullRequestNumber: z.number().describe("プルリクエスト番号"),
+  limit: z.number().min(1).max(100).default(5).describe("1回の取得件数 (1-100, デフォルト: 5)"),
+  after: z.string().optional().describe("ページネーション用カーソル (前回レスポンスのpageInfo.endCursor)"),
 });
 
 server.registerTool(
   "get_unresolved_threads",
   {
-    description: "指定したプルリクエストの未解決の会話スレッド一覧を取得します",
+    description:
+      "指定したプルリクエストの未解決の会話スレッド一覧を取得します。pageInfo.hasNextPage は「取得していない総スレッド（解決済み含む）がまだあるか」を示します。未解決のみ欲しい場合は hasNextPage が false になるまでページネーションを続けてください（現在ページで threads が0件でも次ページに未解決がある場合があります）。",
     inputSchema: getUnresolvedThreadsSchema,
   },
   async (args: z.infer<typeof getUnresolvedThreadsSchema>) => {
-    const { owner, repo, pullRequestNumber } = args;
+    const { owner, repo, pullRequestNumber, limit, after } = args;
     const response = await graphqlRequest<GetUnresolvedThreadsResponse>(
       GET_UNRESOLVED_THREADS_QUERY,
       {
         owner,
         repo,
         pullRequestNumber,
+        first: limit,
+        after: after ?? null,
       }
     );
 
@@ -240,8 +257,8 @@ server.registerTool(
       );
     }
 
-    const reviewThreads = response.repository.pullRequest.reviewThreads.nodes;
-    const unresolvedThreads = reviewThreads
+    const { nodes, pageInfo } = response.repository.pullRequest.reviewThreads;
+    const unresolvedThreads = nodes
       .filter((thread) => !thread.isResolved)
       .map((thread) => ({
         id: thread.id,
@@ -261,6 +278,10 @@ server.registerTool(
             {
               count: unresolvedThreads.length,
               threads: unresolvedThreads,
+              pageInfo: {
+                hasNextPage: pageInfo.hasNextPage,
+                endCursor: pageInfo.endCursor,
+              },
             },
             null,
             2
