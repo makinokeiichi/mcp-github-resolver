@@ -41,9 +41,6 @@ const graphqlWithAuth = graphql.defaults({
   headers: {
     authorization: `token ${GITHUB_TOKEN}`,
   },
-  request: {
-    signal: AbortSignal.timeout(30000),
-  },
 });
 
 // GraphQLレスポンスの型定義
@@ -186,7 +183,11 @@ async function graphqlRequest<T>(
   variables: Record<string, any>
 ): Promise<T> {
   try {
-    const response = (await graphqlWithAuth(query, variables)) as T;
+    const signal = AbortSignal.timeout(30000);
+    const response = (await graphqlWithAuth(query, {
+      ...variables,
+      request: { signal },
+    })) as T;
     return response;
   } catch (error) {
     if (error instanceof Error) {
